@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "./public"
+		},
+		{
+			"path": "./docs"
+		},
+		{
+			"path": "./orlint"
+		},
+		{
+			"path": "./orbiton"
+		}
+	],
+	"settings": {}
+}

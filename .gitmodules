@@ -1,0 +1,15 @@
+[submodule "public"]
+	path = public
+	url = https://github.com/orbitrs/.github.git
+[submodule "orbit"]
+	path = orbit
+	url = https://github.com/orbitrs/orbit.git
+[submodule "orlint"]
+	path = orbit-analyzer
+	url = https://github.com/orbitrs/orlint.git
+[submodule "docs"]
+	path = docs
+	url = https://github.com/orbitrs/docs.git
+[submodule "orbiton"]
+	path = orbiton
+	url = https://github.com/orbitrs/orbiton.git

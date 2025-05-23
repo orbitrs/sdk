@@ -5,7 +5,7 @@
 	path = orbit
 	url = https://github.com/orbitrs/orbit.git
 [submodule "orlint"]
-	path = orbit-analyzer
+	path = orlint
 	url = https://github.com/orbitrs/orlint.git
 [submodule "docs"]
 	path = docs

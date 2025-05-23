@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "orbiton",
     "orbit",
-    "orlint",
+    "orlint", "orbit-docs",
 ]
 
 [workspace.dependencies]

@@ -1,0 +1,153 @@
+name: CI
+
+# Improved CI workflow for the entire orlint SDK
+
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "--cfg ignore_wayland_tests --cfg ignore_lifecycle_tests"
+
+jobs:
+  check:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+    steps:
+      # Create workspace directory for handling dependencies
+      - name: Create workspace directory
+        run: mkdir -p $GITHUB_WORKSPACE/orbitrs-workspace
+
+      # Checkout SDK repository which includes orlint and orbit
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          path: orbitrs-workspace
+
+      # Install tools and dependencies
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+          
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: orbitrs-workspace -> target
+          
+      # Use the existing workspace Cargo.toml  
+      # Run format check from workspace root
+      - name: Check code formatting
+        working-directory: orbitrs-workspace
+        run: cargo fmt --all -- --check
+        
+      # Run clippy from workspace root for all components
+      - name: Run clippy
+        working-directory: orbitrs-workspace
+        run: cargo clippy --all-targets -- -D warnings
+        
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    needs: check
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+      fail-fast: false
+    steps:
+      # Checkout SDK repository which includes orlint and orbit
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          path: orbitrs-workspace
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: orbitrs-workspace -> target
+          key: ${{ matrix.target }}
+      
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+      
+      # Run tests for the entire workspace
+      - name: Run tests
+        working-directory: orbitrs-workspace
+        run: cargo test --target ${{ matrix.target }} --all-features --verbose
+        shell: bash
+        
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 15
+    steps:
+      # Checkout SDK repository which includes orlint and orbit
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          path: orbitrs-workspace
+      
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      
+      # Run audit from workspace root
+      - name: Run security audit
+        working-directory: orbitrs-workspace
+        run: cargo audit
+        
+  outdated-dependencies:
+    name: Check Outdated Dependencies
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 15
+    steps:
+      # Checkout SDK repository which includes orlint and orbit
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          path: orbitrs-workspace
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-outdated
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-outdated
+      
+      # Run outdated from workspace root
+      - name: Check for outdated dependencies
+        working-directory: orbitrs-workspace
+        run: cargo outdated --exit-code 0

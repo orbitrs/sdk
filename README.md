@@ -1,32 +1,49 @@
-# Welcome to Orbitrs
+# Orbitrs SDK Monorepo
 
 <p align="center">
   <img src="public/assets/orbitrs.svg" alt="Orbitrs Logo" width="200">
 </p>
 
-Orbitrs is an ecosystem of Rust-first UI and tooling projects for web, desktop, native, and embedded applications.
+Orbitrs SDK is a workspace containing the core Orbit UI framework, CLI tooling, static analysis tools, public assets, and comprehensive documentation to power Rust-first UI across web, desktop, native, and embedded targets.
 
-## Our Projects
+## Workspace Structure
 
-| Project | Description | Link |
-|---|---|---|
-| **orbit** | Core UI framework with Skia & WGPU rendering | https://github.com/orbitrs/orbit |
-| **orbiton** | CLI tooling for development, build, & deployment | https://github.com/orbitrs/orbiton |
-| **orlint** | Static analysis, linting & validation for `.orbit` files | https://github.com/orbitrs/orlint |
-| **sdk** | SDK, public assets & integrations | https://github.com/orbitrs/sdk |
-| **docs** | Comprehensive guides, API references & tutorials | https://github.com/orbitrs/sdk/docs |
+| Component              | Path        | Description                                                     |
+|------------------------|-------------|-----------------------------------------------------------------|
+| Core Framework         | `orbit/`    | Orbit UI framework with Skia & WGPU rendering                   |
+| CLI Tools              | `orbiton/`  | Command-line interface for development, building, and deployment|
+| Linting & Analysis     | `orlint/`   | Static analysis, linting, and validation for `.orbit` files     |
+| Public Assets & Site   | `public/`   | Organization website, assets, and examples                      |
+| Documentation          | `docs/`     | Guides, API references, tutorials, roadmap, and progress reports|
 
-## Get Started
+## Getting Started
 
-1. Explore the core framework: https://github.com/orbitrs/orbit
-2. Install CLI tools: `cargo install orbiton`
-3. View live demos & examples: https://orbitrs.github.io
+# Build the entire workspace
+```bash
+cargo build --workspace
+```
+
+# Install and run the CLI
+```bash
+cargo install --path orbiton
+orbiton new my-app
+cd my-app
+orbiton dev
+```
+
+# Run tests and lint
+```bash
+cargo test --workspace
+orlint lint
+```
+
+## Documentation
+
+Explore detailed guides, API references, and tutorials in [docs/README.md](docs/README.md).
 
 ## Contributing
 
-We welcome contributions of code, components, documentation, and feedback!
-- Report issues or request features: [GitHub Issues](https://github.com/orbitrs/orbit/issues)
-- Submit pull requests to any of our repositories
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues, contributing code, documentation, and other improvements.
 
 <p align="center">
   <em>Crafted with ❤️ by the Orbitrs Team</em>

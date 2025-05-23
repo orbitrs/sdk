@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing to the Orbit Framework! This document provides guidelines and instructions for contributing to the various components of the Orbit ecosystem.
 
+> **Important Development Priority Notice**: As of May 23, 2025, the primary focus is on core framework development rather than SDK improvements. Please review [Development Priorities](docs/DEVELOPMENT_PRIORITIES.md) for details on current focus areas.
+
 ## Table of Contents
 
 - [Project Structure](#project-structure)

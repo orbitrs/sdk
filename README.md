@@ -6,6 +6,10 @@
 
 Orbitrs SDK is a workspace containing the core Orbit UI framework, CLI tooling, static analysis tools, public assets, and comprehensive documentation to power Rust-first UI across web, desktop, native, and embedded targets.
 
+## Development Priority
+
+> **Important**: The SDK itself is currently used for personal development purposes and improvements to it are considered non-essential. The primary focus is on core framework development. Contributors should prioritize work on the core components (orbit, orbiton, orlint) rather than SDK enhancements.
+
 ## Workspace Structure
 
 | Component              | Path        | Description                                                     |

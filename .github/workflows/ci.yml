@@ -3,8 +3,13 @@ name: Orbit Framework CI/CD Pipeline
 on:
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  pull_reque    - name: Build for WebAssembly
+      env:
+        RUSTFLAGS: "--cfg=web_sys_unstable_apis"
+      run: |
+        cargo build --target wasm32-unknown-unknown --package orbit --no-default-features --features="wasm"
+        # Build examples with the web feature
+        cargo build --target wasm32-unknown-unknown --package examples --no-default-features --features="web"    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -86,11 +91,15 @@ jobs:
       with:
         targets: wasm32-unknown-unknown
     - uses: Swatinem/rust-cache@v2
+    - name: Install system dependencies (Linux)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Install wasm-pack
       run: cargo install wasm-pack
     - name: Build for WebAssembly
       run: |
-        cargo build --target wasm32-unknown-unknown --package orbit --no-default-features --features="web"
+        cargo build --target wasm32-unknown-unknown --package orbit --no-default-features --features="web" --no-deps
         cargo build --target wasm32-unknown-unknown --package examples --no-default-features
   # Documentation generation and deployment
   docs:

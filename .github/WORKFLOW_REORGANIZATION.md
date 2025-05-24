@@ -17,7 +17,7 @@ This document outlines the reorganization of GitHub workflows for the Orbit Fram
 
 Located in `/Volumes/EXT/repos/orbitrs/sdk/.github/workflows/`
 
-#### 1. `workspace-ci.yml` - Main CI Pipeline
+#### 1. `ci.yml` - Main CI Pipeline
 - **Purpose**: Comprehensive testing for the entire workspace
 - **Triggers**: Push/PR to main/develop branches
 - **Responsibilities**:
@@ -27,7 +27,7 @@ Located in `/Volumes/EXT/repos/orbitrs/sdk/.github/workflows/`
   - Feature matrix testing
   - Coverage reporting (main branch only)
 
-#### 2. `workspace-release.yml` - Main Release Pipeline
+#### 2. `release.yml` - Main Release Pipeline
 - **Purpose**: Coordinated releases for the entire workspace
 - **Triggers**: Git tags (`v*`) or manual dispatch
 - **Responsibilities**:

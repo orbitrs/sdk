@@ -10,7 +10,7 @@ members = [
 # Workspace-wide optimization settings
 [workspace.dependencies]
 # Internal crates
-orbit = { path = "./orbit" }
+orbit = { path = "./orbit", default-features = false }
 orbiton = { path = "./orbiton" }
 orlint = { path = "./orlint" }
 examples = { path = "./examples" }

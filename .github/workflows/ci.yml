@@ -22,6 +22,10 @@ jobs:
         submodules: recursive
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
+    - name: Install system dependencies (Linux)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Fast workspace check
       run: cargo check --workspace --all-targets
 
@@ -103,7 +107,8 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.ref == 'refs/heads/main'
+    # Always run documentation build but only deploy on main
+    if: ${{ always() }}
     permissions:
       contents: read
       pages: write
@@ -124,11 +129,17 @@ jobs:
     - name: Generate documentation
       run: cargo doc --workspace --no-default-features --no-deps
     - name: Setup Pages
+      id: setup-pages
+      continue-on-error: true
       uses: actions/configure-pages@v4
+      with:
+        enablement: true
     - name: Upload artifact
+      if: steps.setup-pages.outcome == 'success' && github.ref == 'refs/heads/main'
       uses: actions/upload-pages-artifact@v3
       with:
         path: './target/doc'
     - name: Deploy to GitHub Pages
+      if: steps.setup-pages.outcome == 'success' && github.ref == 'refs/heads/main'
       id: deployment
       uses: actions/deploy-pages@v4

@@ -1,7 +1,7 @@
 # Orbit SDK
 
 <p align="center">
-  <img src="public/assets/orbitrs.svg" alt="Orbitrs Logo" width="200">
+  <img src="https://raw.githubusercontent.com/orbitrs/.github/refs/heads/main/assets/orbitrs.svg" alt="Orbit UI Framework" width="200">
 </p>
 
 Orbitrs SDK is a workspace containing the core Orbit UI framework, CLI tooling, static analysis tools, public assets, and comprehensive documentation to power Rust-first UI across web, desktop, native, and embedded targets.

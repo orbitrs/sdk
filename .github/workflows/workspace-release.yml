@@ -1,0 +1,368 @@
+name: Workspace Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish-crates:
+        description: 'Publish crates to crates.io'
+        type: boolean
+        default: false
+      build-docs:
+        description: 'Build and deploy documentation'
+        type: boolean
+        default: true
+      build-artifacts:
+        description: 'Build cross-platform artifacts'
+        type: boolean
+        default: false
+      update-changelog:
+        description: 'Update CHANGELOG.md files'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+  id-token: write
+  pages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      orbit-version: ${{ steps.versions.outputs.orbit }}
+      orbiton-version: ${{ steps.versions.outputs.orbiton }}
+      orlint-version: ${{ steps.versions.outputs.orlint }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Get workspace version
+        id: version
+        run: |
+          # Use the main orbit crate version as the workspace version
+          VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "orbit") | .version')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get individual crate versions
+        id: versions
+        run: |
+          METADATA=$(cargo metadata --no-deps --format-version=1)
+          ORBIT_VERSION=$(echo "$METADATA" | jq -r '.packages[] | select(.name == "orbit") | .version')
+          ORBITON_VERSION=$(echo "$METADATA" | jq -r '.packages[] | select(.name == "orbiton") | .version')
+          ORLINT_VERSION=$(echo "$METADATA" | jq -r '.packages[] | select(.name == "orlint") | .version')
+          
+          echo "orbit=$ORBIT_VERSION" >> $GITHUB_OUTPUT
+          echo "orbiton=$ORBITON_VERSION" >> $GITHUB_OUTPUT
+          echo "orlint=$ORLINT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update changelogs if requested
+        if: github.event.inputs.update-changelog == 'true'
+        run: |
+          # This would trigger changelog updates for each crate
+          # Implementation depends on your changelog management strategy
+          echo "Changelog update requested - implement as needed"
+
+  test:
+    name: Test Before Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
+  publish:
+    name: Publish Crates
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.publish-crates)
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [orbit, orbiton, orlint]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Check if crate version exists on crates.io
+        id: check-version
+        run: |
+          CRATE_NAME="${{ matrix.crate }}"
+          VERSION=""
+          
+          case "$CRATE_NAME" in
+            "orbit") VERSION="${{ needs.prepare.outputs.orbit-version }}" ;;
+            "orbiton") VERSION="${{ needs.prepare.outputs.orbiton-version }}" ;;
+            "orlint") VERSION="${{ needs.prepare.outputs.orlint-version }}" ;;
+          esac
+          
+          RESPONSE=$(curl -s "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
+          if echo "$RESPONSE" | grep -q "\"version\""; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::warning::Crate $CRATE_NAME version $VERSION already exists on crates.io"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish crate
+        if: steps.check-version.outputs.exists == 'false'
+        run: |
+          cd ${{ matrix.crate }}
+          cargo publish --token ${{ secrets.CRATES_TOKEN }}
+
+  build-artifacts:
+    name: Build Cross-Platform Artifacts
+    runs-on: ${{ matrix.os }}
+    needs: [prepare, test]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.build-artifacts)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            name: linux-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: macos-aarch64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+
+      - name: Setup cross-compilation for aarch64 (Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Build binaries
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            # Use cross for aarch64 Linux builds
+            cross build --release --target ${{ matrix.target }} --bin orbiton --bin orlint
+          else
+            # Use standard cargo for other targets
+            cargo build --release --target ${{ matrix.target }} --bin orbiton --bin orlint
+          fi
+
+      - name: Package artifacts
+        shell: bash
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          NAME="${{ matrix.name }}"
+          
+          mkdir -p dist
+          
+          # Package orbiton
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "target/$TARGET/release/orbiton.exe" "dist/orbiton-$VERSION-$NAME.exe"
+            cp "target/$TARGET/release/orlint.exe" "dist/orlint-$VERSION-$NAME.exe"
+          else
+            cp "target/$TARGET/release/orbiton" "dist/orbiton-$VERSION-$NAME"
+            cp "target/$TARGET/release/orlint" "dist/orlint-$VERSION-$NAME"
+          fi
+          
+          # Create archive
+          cd dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "orbitrs-tools-$VERSION-$NAME.zip" *
+          else
+            tar -czf "orbitrs-tools-$VERSION-$NAME.tar.gz" *
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.name }}
+          path: dist/*
+
+  docs:
+    name: Build & Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.build-docs)
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Build documentation
+        env:
+          RUSTDOCFLAGS: "--cfg docsrs"
+        run: |
+          # Build API documentation for all workspace crates
+          cargo doc --workspace --no-deps --all-features --document-private-items
+          
+          # Build examples documentation
+          cd examples
+          cargo doc --no-deps --all-features
+          cd ..
+
+      - name: Prepare documentation site
+        run: |
+          mkdir -p docs-site
+          
+          # Copy API documentation
+          cp -r target/doc/* docs-site/
+          
+          # Copy examples documentation
+          mkdir -p docs-site/examples
+          cp -r examples/target/doc/* docs-site/examples/
+          
+          # Create index.html redirecting to main documentation
+          cat > docs-site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>Orbit Framework Documentation</title>
+              <meta http-equiv="refresh" content="0; url=./orbit/">
+          </head>
+          <body>
+              <p><a href="./orbit/">Redirect to Orbit Framework Documentation</a></p>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload documentation
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, test, build-artifacts]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.build-artifacts)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} release-files/ \;
+          ls -la release-files/
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          
+          # Extract changelog from orbit/CHANGELOG.md
+          CHANGELOG=$(awk -v version="## \\[$VERSION\\]" '
+            BEGIN { found=0; }
+            /^## \[/ { 
+              if (found == 1) { exit }
+              if ($0 ~ version) { found=1; print; next } 
+            }
+            found { print }
+          ' orbit/CHANGELOG.md || echo "Release v$VERSION")
+          
+          # Save to file for release
+          echo "$CHANGELOG" > changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Orbit Framework v${{ needs.prepare.outputs.version }}"
+          body_path: changelog.md
+          files: release-files/*
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false

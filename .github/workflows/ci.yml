@@ -92,7 +92,6 @@ jobs:
       run: |
         cargo build --target wasm32-unknown-unknown --package orbit --no-default-features --features="web"
         cargo build --target wasm32-unknown-unknown --package examples --no-default-features
-
   # Documentation generation and deployment
   docs:
     name: Documentation
@@ -103,6 +102,9 @@ jobs:
       contents: read
       pages: write
       id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -114,9 +116,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Generate documentation
-      run: cargo doc --workspace --features desktop --no-deps
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
+      run: cargo doc --workspace --no-default-features --no-deps
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target/doc
+        path: './target/doc'
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2

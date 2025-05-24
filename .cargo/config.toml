@@ -1,0 +1,58 @@
+# Orbit Framework Build Optimization Configuration
+# Optimized for rapid development and fast iteration
+
+[build]
+# Use all available CPU cores for parallel compilation
+# jobs = 0  # Let Cargo auto-detect optimal job count
+
+[target.x86_64-pc-windows-msvc]
+# Windows-specific optimizations
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "opt-level=2",
+    "-C", "debuginfo=0"  # Disable debug info for faster builds in dev
+]
+
+[profile.dev]
+# Development profile optimized for fast compilation
+opt-level = 0
+debug = false         # Disable debug symbols for faster builds
+incremental = true    # Enable incremental compilation
+codegen-units = 16    # Increase parallel codegen units
+
+[profile.dev.package."*"]
+# Optimize dependencies even in dev mode for better runtime performance
+opt-level = 2
+debug = false
+
+[profile.release]
+# Release profile optimized for performance
+opt-level = 3
+debug = false
+lto = "thin"          # Thin LTO for good optimization with reasonable compile times
+codegen-units = 1     # Single codegen unit for maximum optimization
+panic = "abort"       # Smaller binary size
+
+[profile.release-with-debug]
+# Release profile with debug info for profiling
+inherits = "release"
+debug = true
+
+[net]
+# Use sparse registry for faster dependency resolution
+git-fetch-with-cli = true
+
+[registries.crates-io]
+protocol = "sparse"
+
+# Fast compilation aliases
+[alias]
+b = "build"
+c = "check"
+t = "test"
+r = "run"
+br = "build --release"
+tr = "test --release"
+dev = "run --bin orbiton -- dev"
+fast-check = "check --workspace --all-targets --all-features"
+fast-test = "test --workspace --lib --bins"

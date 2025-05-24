@@ -10,6 +10,16 @@ Orbitrs SDK is a workspace containing the core Orbit UI framework, CLI tooling, 
 
 > **Important**: The SDK itself is currently used for personal development purposes and improvements to it are considered non-essential. The primary focus is on core framework development. Contributors should prioritize work on the core components (orbit, orbiton, orlint) rather than SDK enhancements.
 
+## Recent Progress (May 2025)
+
+- Fixed build target conflicts in examples project structure
+- Created comprehensive examples demonstrating props and events system
+- Implemented component lifecycle demonstration
+- Added WGPU renderer examples for 3D capabilities
+- Refactored project organization for better maintainability
+
+See [Milestone 1 Tracking](docs/roadmap/tracking/milestone-1-tracking.md) for detailed progress updates.
+
 ## Workspace Structure
 
 | Component              | Path        | Description                                                     |

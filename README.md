@@ -1,4 +1,4 @@
-# Orbitrs SDK Monorepo
+# Orbit SDK
 
 <p align="center">
   <img src="public/assets/orbitrs.svg" alt="Orbitrs Logo" width="200">

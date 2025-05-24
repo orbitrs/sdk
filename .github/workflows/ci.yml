@@ -15,8 +15,11 @@ jobs:
   fast-check:
     name: Fast Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - name: Fast workspace check
@@ -26,12 +29,15 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta]
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: dtolnay/rust-toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
@@ -40,7 +46,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-dev xorg-dev
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Run tests
       run: cargo test --workspace --all-features
     - name: Run clippy
@@ -50,10 +56,17 @@ jobs:
   build:
     name: Build Verification
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
+    - name: Install system dependencies (Linux)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Build all crates
       run: cargo build --workspace --all-features
     - name: Build examples
@@ -63,8 +76,11 @@ jobs:
   wasm-build:
     name: WebAssembly Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
@@ -78,11 +94,18 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.ref == 'refs/heads/main'
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
+    - name: Install system dependencies (Linux)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Generate documentation
       run: cargo doc --workspace --all-features --no-deps
     - name: Deploy to GitHub Pages

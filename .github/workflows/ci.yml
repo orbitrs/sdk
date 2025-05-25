@@ -427,6 +427,7 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
           
           # Store the full failure details for reports
           echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+      
       - name: Create summary report
         shell: bash
         run: |

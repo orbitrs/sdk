@@ -134,9 +134,9 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       id: examples_clippy
       continue-on-error: true
       run: cargo clippy -p examples --features desktop -- -D warnings
-      
-    - name: Collect package failures
+      - name: Collect package failures
       id: collect_failures
+      shell: bash
       run: |
         # Build a JSON array of failures
         echo "Building JSON array of failures..."
@@ -175,9 +175,9 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
         
         # Output the failures JSON
         echo "failure_details=$FAILURES" >> $GITHUB_OUTPUT
-        
-    - name: Report failures to summary
+        - name: Report failures to summary
       if: steps.collect_failures.outputs.has_failures == 'true'
+      shell: bash
       run: |
         echo "## ⚠️ Beta Toolchain Failures Detected" >> $GITHUB_STEP_SUMMARY
         echo "This is non-blocking information for monitoring Rust beta compatibility." >> $GITHUB_STEP_SUMMARY
@@ -199,8 +199,7 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
         else
           echo "- **orlint tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
         fi
-        
-        if [[ "${{ steps.orbiton_tests.outcome }}" == "failure" ]]; then
+          if [[ "${{ steps.orbiton_tests.outcome }}" == "failure" ]]; then
           echo "- **orbiton tests:** Failed ❌" >> $GITHUB_STEP_SUMMARY
         else
           echo "- **orbiton tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
@@ -327,154 +326,27 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
         fi    
     - name: Generate documentation (excluding orbit-mcp)
       run: cargo doc --workspace --exclude orbit-mcp --no-default-features --no-deps
-    
-    - name: Create documentation landing page
+      - name: Create documentation landing page from template
       run: |
-        # Create a beautiful landing page for the documentation
-        cat > ./target/doc/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Orbit Framework Documentation</title>
-            <meta name="description" content="Documentation for the Orbit UI Framework - A cross-platform Rust-based UI framework">
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 2rem;
-                    background-color: #f8f9fa;
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 3rem;
-                    padding: 2rem;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 12px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                }
-                .header h1 {
-                    margin: 0;
-                    font-size: 2.5rem;
-                    font-weight: 600;
-                }
-                .header p {
-                    margin: 0.5rem 0 0;
-                    font-size: 1.1rem;
-                    opacity: 0.9;
-                }
-                .docs-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 1.5rem;
-                    margin-bottom: 2rem;
-                }
-                .doc-card {
-                    background: white;
-                    padding: 1.5rem;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                }
-                .doc-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                }
-                .doc-card h2 {
-                    margin: 0 0 1rem;
-                    color: #667eea;
-                    font-size: 1.3rem;
-                }
-                .doc-card p {
-                    margin: 0 0 1rem;
-                    color: #666;
-                }
-                .doc-card a {
-                    display: inline-block;
-                    padding: 0.5rem 1rem;
-                    background: #667eea;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 4px;
-                    transition: background 0.2s;
-                }
-                .doc-card a:hover {
-                    background: #5a67d8;
-                }
-                .footer {
-                    text-align: center;
-                    margin-top: 3rem;
-                    padding: 1rem;
-                    color: #666;
-                    border-top: 1px solid #eee;
-                }
-                .footer a {
-                    color: #667eea;
-                    text-decoration: none;
-                }
-                .footer a:hover {
-                    text-decoration: underline;
-                }
-                @media (max-width: 600px) {
-                    body { padding: 1rem; }
-                    .header h1 { font-size: 2rem; }
-                    .docs-grid { grid-template-columns: 1fr; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1><img src="https://raw.githubusercontent.com/orbitrs/.github/refs/heads/main/assets/orbitrs.svg" alt="Orbit UI Framework" width="200"> Orbit SDK</h1>
-                <p>Cross-platform Rust-based UI Framework Documentation</p>
-            </div>
-
-            <div class="docs-grid">
-                <div class="doc-card">
-                    <h2>📚 Core Framework (orbit)</h2>
-                    <p>The core rendering engine, component model, and foundational APIs for the Orbit UI framework.</p>
-                    <a href="./orbit/index.html">View Core Documentation</a>
-                </div>
-
-                <div class="doc-card">
-                    <h2>🛠️ CLI Tool (orbiton)</h2>
-                    <p>Command-line interface for project scaffolding, development server, build tools, and analysis.</p>
-                    <a href="./orbiton/index.html">View CLI Documentation</a>
-                </div>
-
-                <div class="doc-card">
-                    <h2>🔍 Static Analyzer (orlint)</h2>
-                    <p>Static analyzer and linter for .orbit single-file components with advanced diagnostics.</p>
-                    <a href="./orlint/index.html">View Analyzer Documentation</a>
-                </div>
-
-                <div class="doc-card">
-                    <h2>💡 Examples</h2>
-                    <p>Sample applications, component demos, and practical usage examples for learning Orbit.</p>
-                    <a href="./examples/index.html">View Examples</a>
-                </div>
-            </div>
-
-            <div class="footer">
-                <p>
-                    Generated with ❤️ by <a href="https://forge.rust-lang.org/infra/rustdoc.html">rustdoc</a> |
-                    <a href="https://github.com/orbitrs/sdk">GitHub Repository</a> |
-                    <a href="https://github.com/orbitrs/sdk/issues">Report Issues</a>
-                </p>
-                <p>
-                    <strong>Version:</strong> Built from main branch
-                </p>
-                <p>
-                    Powered by <strong><a href="https://devstroop.com">Devstroop Technologies</a></strong>
-                </p>
-            </div>
-        </body>
-        </html>
-        EOF
+        # Get build information
+        BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+        VERSION="0.1.0-dev"
+        BRANCH="${GITHUB_REF#refs/heads/}"
+          # Copy static assets to documentation directory
+        mkdir -p ./target/doc/static
+        cp docs/static/styles.css ./target/doc/styles.css
+        
+        # Generate the index.html from template with variable substitution
+        sed -e "s/{{VERSION}}/$VERSION/g" \
+            -e "s/{{BUILD_DATE}}/$BUILD_DATE/g" \
+            -e "s/{{BRANCH}}/$BRANCH/g" \
+            docs/static/index.html.template > ./target/doc/index.html
+        
+        # Ensure the paths are correct for the generated documentation
+        echo "Documentation landing page generated from template with build info:"
+        echo "- Version: $VERSION"
+        echo "- Built: $BUILD_DATE" 
+        echo "- Branch: $BRANCH"
     - name: Setup Pages
       id: setup-pages
       continue-on-error: true
@@ -500,9 +372,9 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
     outputs:
       consolidated_failures: ${{ steps.consolidate.outputs.consolidated_failures }}
       has_failures: ${{ steps.consolidate.outputs.has_failures }}
-    steps:
-      - name: Consolidate results
+    steps:      - name: Consolidate results
         id: consolidate
+        shell: bash
         run: |
           # Use the output from test-beta job directly
           FAILURES='${{ needs.test-beta.outputs.failure_details }}'
@@ -527,18 +399,18 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       contents: read
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Get beta version
+        - name: Get beta version
         id: get-beta-version
         if: needs.beta-consolidate.outputs.has_failures == 'true'
+        shell: bash
         run: |
           rustup default beta
           BETA_VERSION=$(rustc --version)
           echo "beta_version=$BETA_VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Process failure data
+        - name: Process failure data
         id: process-failures
         if: needs.beta-consolidate.outputs.has_failures == 'true'
+        shell: bash
         run: |
           # Get the failures from beta-consolidate job output
           FAILURES='${{ needs.beta-consolidate.outputs.consolidated_failures }}'
@@ -550,8 +422,8 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
           
           # Store the full failure details for reports
           echo "failures=$FAILURES" >> $GITHUB_OUTPUT
-      
-      - name: Create summary report
+        - name: Create summary report
+        shell: bash
         run: |
           echo "# 📊 Rust Beta Compatibility Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

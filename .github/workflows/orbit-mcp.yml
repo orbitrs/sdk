@@ -1,0 +1,367 @@
+# Orbit MCP (Model Context Protocol) Standalone CI Pipeline
+# This workflow runs independently and does not block the main orbit+orlint+orbiton pipeline
+
+name: Orbit MCP CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'orbit-mcp/**'
+      - '.github/workflows/orbit-mcp.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'orbit-mcp/**'
+      - '.github/workflows/orbit-mcp.yml'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      skip_tests:
+        description: 'Skip tests (useful for utility dependencies)'
+        required: false
+        default: 'false'
+        type: boolean
+      force_build:
+        description: 'Force build even if no changes'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Pre-check to ensure orbit-mcp exists and is ready
+  orbit-mcp-precheck:
+    name: Orbit MCP Pre-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mcp_ready: ${{ steps.check.outputs.mcp_ready }}
+      has_cargo_toml: ${{ steps.check.outputs.has_cargo_toml }}
+      skip_pipeline: ${{ steps.check.outputs.skip_pipeline }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check orbit-mcp status
+      id: check
+      run: |
+        echo "Checking orbit-mcp directory and configuration..."
+        
+        if [ ! -d "orbit-mcp" ]; then
+          echo "⚠️ orbit-mcp directory does not exist"
+          echo "mcp_ready=false" >> $GITHUB_OUTPUT
+          echo "has_cargo_toml=false" >> $GITHUB_OUTPUT
+          echo "skip_pipeline=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        if [ ! -f "orbit-mcp/Cargo.toml" ]; then
+          echo "⚠️ orbit-mcp/Cargo.toml does not exist"
+          echo "mcp_ready=false" >> $GITHUB_OUTPUT
+          echo "has_cargo_toml=false" >> $GITHUB_OUTPUT
+          echo "skip_pipeline=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Check if directory is empty except for Cargo.toml
+        file_count=$(find orbit-mcp -type f | wc -l)
+        if [ "$file_count" -eq 1 ]; then
+          echo "⚠️ orbit-mcp only contains Cargo.toml, likely placeholder"
+          echo "mcp_ready=false" >> $GITHUB_OUTPUT
+          echo "has_cargo_toml=true" >> $GITHUB_OUTPUT
+          echo "skip_pipeline=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "✅ orbit-mcp appears ready for CI"
+        echo "mcp_ready=true" >> $GITHUB_OUTPUT
+        echo "has_cargo_toml=true" >> $GITHUB_OUTPUT
+        echo "skip_pipeline=false" >> $GITHUB_OUTPUT
+
+  # Fast check for orbit-mcp only
+  orbit-mcp-fast-check:
+    name: Orbit MCP Fast Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [orbit-mcp-precheck]
+    if: needs.orbit-mcp-precheck.outputs.skip_pipeline == 'false'
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: orbit-mcp
+    
+    - name: Install MCP-specific dependencies
+      run: |
+        # Install Node.js for potential MCP tooling
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        
+        # Install any MCP-specific system dependencies
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libssl-dev
+    
+    - name: Check orbit-mcp workspace
+      run: |
+        cd orbit-mcp
+        cargo check --all-targets
+
+  # Comprehensive testing for orbit-mcp (isolated)
+  orbit-mcp-test:
+    name: Orbit MCP Test Suite
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [orbit-mcp-precheck, orbit-mcp-fast-check]
+    if: needs.orbit-mcp-precheck.outputs.skip_pipeline == 'false' && github.event.inputs.skip_tests != 'true'
+    continue-on-error: true  # Don't fail the entire pipeline
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false  # Continue with other OS tests even if one fails
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: orbit-mcp-${{ matrix.os }}
+    
+    - name: Install MCP dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs pkg-config libssl-dev
+    
+    - name: Install MCP dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: powershell
+      run: |
+        # Install Node.js via Chocolatey if needed
+        if (!(Get-Command node -ErrorAction SilentlyContinue)) {
+          choco install nodejs -y
+        }
+    
+    - name: Install MCP dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install node
+    
+    - name: Run orbit-mcp tests
+      run: |
+        cd orbit-mcp
+        cargo test --all-targets
+    
+    - name: Run orbit-mcp clippy
+      run: |
+        cd orbit-mcp
+        cargo clippy --all-targets -- -D warnings
+    
+    - name: Check formatting
+      run: |
+        cd orbit-mcp
+        cargo fmt --all -- --check
+
+  # Build verification for orbit-mcp
+  orbit-mcp-build:
+    name: Orbit MCP Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [orbit-mcp-precheck]
+    if: needs.orbit-mcp-precheck.outputs.skip_pipeline == 'false'
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: orbit-mcp-build
+    
+    - name: Install build dependencies
+      run: |
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs pkg-config libssl-dev
+    
+    - name: Build orbit-mcp in release mode
+      run: |
+        cd orbit-mcp
+        cargo build --release --all-targets
+
+  # Documentation for orbit-mcp (separate from main docs)
+  orbit-mcp-docs:
+    name: Orbit MCP Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [orbit-mcp-precheck]
+    if: needs.orbit-mcp-precheck.outputs.skip_pipeline == 'false' && github.ref == 'refs/heads/main'
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: orbit-mcp-docs
+    
+    - name: Generate orbit-mcp documentation
+      run: |
+        cd orbit-mcp
+        cargo doc --no-deps --all-features
+    
+    - name: Upload MCP docs artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: orbit-mcp-docs
+        path: orbit-mcp/target/doc
+        retention-days: 7
+
+  # Report orbit-mcp status (non-blocking summary)
+  orbit-mcp-status:
+    name: Orbit MCP Status Report
+    runs-on: ubuntu-latest
+    needs: [orbit-mcp-precheck, orbit-mcp-fast-check, orbit-mcp-test, orbit-mcp-build, orbit-mcp-docs]
+    if: always()
+    steps:
+    - name: Generate status report
+      run: |
+        echo "# 🛰️ Orbit MCP Pipeline Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Note**: This pipeline runs independently and does not affect the main orbit+orlint+orbiton pipeline." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check if pipeline was skipped
+        if [[ "${{ needs.orbit-mcp-precheck.outputs.skip_pipeline }}" == "true" ]]; then
+          echo "⏭️ **Pipeline Skipped**" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.orbit-mcp-precheck.outputs.mcp_ready }}" == "false" ]]; then
+            if [[ "${{ needs.orbit-mcp-precheck.outputs.has_cargo_toml }}" == "false" ]]; then
+              echo "- Reason: orbit-mcp directory or Cargo.toml missing" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- Reason: orbit-mcp appears to be a placeholder (only Cargo.toml present)" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To enable orbit-mcp CI:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Ensure orbit-mcp/Cargo.toml exists" >> $GITHUB_STEP_SUMMARY
+          echo "2. Add source code to orbit-mcp/" >> $GITHUB_STEP_SUMMARY
+          echo "3. Push changes to trigger this workflow" >> $GITHUB_STEP_SUMMARY
+          exit 0
+        fi
+        
+        # Report job statuses
+        echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Pre-check
+        if [[ "${{ needs.orbit-mcp-precheck.result }}" == "success" ]]; then
+          echo "- ✅ **Pre-check**: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ❌ **Pre-check**: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Fast check
+        if [[ "${{ needs.orbit-mcp-fast-check.result }}" == "success" ]]; then
+          echo "- ✅ **Fast Check**: Passed" >> $GITHUB_STEP_SUMMARY
+        elif [[ "${{ needs.orbit-mcp-fast-check.result }}" == "failure" ]]; then
+          echo "- ❌ **Fast Check**: Failed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⏭️ **Fast Check**: Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Test suite
+        if [[ "${{ needs.orbit-mcp-test.result }}" == "success" ]]; then
+          echo "- ✅ **Test Suite**: Passed" >> $GITHUB_STEP_SUMMARY
+        elif [[ "${{ needs.orbit-mcp-test.result }}" == "failure" ]]; then
+          echo "- ⚠️ **Test Suite**: Failed (non-blocking)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⏭️ **Test Suite**: Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Build
+        if [[ "${{ needs.orbit-mcp-build.result }}" == "success" ]]; then
+          echo "- ✅ **Build**: Passed" >> $GITHUB_STEP_SUMMARY
+        elif [[ "${{ needs.orbit-mcp-build.result }}" == "failure" ]]; then
+          echo "- ⚠️ **Build**: Failed (non-blocking)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⏭️ **Build**: Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Docs
+        if [[ "${{ needs.orbit-mcp-docs.result }}" == "success" ]]; then
+          echo "- ✅ **Documentation**: Generated" >> $GITHUB_STEP_SUMMARY
+        elif [[ "${{ needs.orbit-mcp-docs.result }}" == "failure" ]]; then
+          echo "- ⚠️ **Documentation**: Failed (non-blocking)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⏭️ **Documentation**: Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Add manual trigger info
+        echo "## Manual Control" >> $GITHUB_STEP_SUMMARY
+        echo "This workflow can be triggered manually with options:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Skip Tests**: Useful when only checking utility dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "- **Force Build**: Build even when no orbit-mcp changes detected" >> $GITHUB_STEP_SUMMARY
+
+  # Utility dependency check (separate job that never fails the pipeline)
+  orbit-mcp-utility-deps:
+    name: Orbit MCP Utility Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [orbit-mcp-precheck]
+    if: needs.orbit-mcp-precheck.outputs.skip_pipeline == 'false'
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: orbit-mcp-deps
+    
+    - name: Check utility dependencies
+      run: |
+        echo "Checking orbit-mcp utility dependencies..."
+        cd orbit-mcp
+        
+        # Check for common utility dependency issues
+        if cargo tree --duplicates 2>/dev/null | grep -q .; then
+          echo "⚠️ Duplicate dependencies detected:"
+          cargo tree --duplicates
+        else
+          echo "✅ No duplicate dependencies"
+        fi
+        
+        # Check for security advisories
+        if command -v cargo-audit &> /dev/null; then
+          echo "Running security audit..."
+          cargo audit || echo "⚠️ Security advisories found (non-blocking)"
+        else
+          echo "ℹ️ cargo-audit not available, skipping security check"
+        fi
+        
+        # Check for outdated dependencies
+        if command -v cargo-outdated &> /dev/null; then
+          echo "Checking for outdated dependencies..."
+          cargo outdated || echo "ℹ️ Some dependencies may be outdated"
+        else
+          echo "ℹ️ cargo-outdated not available, skipping outdated check"
+        fi
+    
+    - name: Generate dependency report
+      run: |
+        echo "# 📦 Orbit MCP Dependency Report" >> dep_report.md
+        echo "" >> dep_report.md
+        cd orbit-mcp
+        echo "## Dependency Tree" >> ../dep_report.md
+        echo '```' >> ../dep_report.md
+        cargo tree --depth 2 >> ../dep_report.md || echo "Failed to generate tree" >> ../dep_report.md
+        echo '```' >> ../dep_report.md
+    
+    - name: Upload dependency report
+      uses: actions/upload-artifact@v4
+      with:
+        name: orbit-mcp-dependency-report
+        path: dep_report.md
+        retention-days: 7

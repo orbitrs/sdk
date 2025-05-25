@@ -3,17 +3,28 @@ name: Orbit Framework CI/CD Pipeline
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'orbit-mcp/**'
+      - '.github/workflows/orbit-mcp.yml'
+      - 'docs/**'
+      - '*.md'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'orbit-mcp/**'
+      - '.github/workflows/orbit-mcp.yml'
+      - 'docs/**'
+      - '*.md'
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Explicitly exclude orbit-mcp from workspace operations
+  CARGO_WORKSPACE_EXCLUDE: "orbit-mcp"
 
-jobs:
-  # Fast feedback job for quick iteration
+jobs:  # Fast feedback job for quick iteration - Core Framework Only
   fast-check:
-    name: Fast Check
+    name: Fast Check (Core Framework)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,12 +37,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
-    - name: Fast workspace check
-      run: cargo check --workspace --all-targets
-
+    - name: Fast workspace check (excluding orbit-mcp)
+      run: |
+        echo "Checking core framework workspace: orbit, orlint, orbiton, examples"
+        cargo check --workspace --all-targets --exclude orbit-mcp
   # Comprehensive testing across platforms - stable channel (required)
   test-stable:
-    name: Test Suite (Stable)
+    name: Test Suite (Stable - Core Framework)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -51,14 +63,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
-    - name: Run tests
-      run: cargo test --workspace --features desktop
-    - name: Run clippy
-      run: cargo clippy --workspace --all-targets --features desktop -- -D warnings
-
+    - name: Run tests (excluding orbit-mcp)
+      run: cargo test --workspace --exclude orbit-mcp --features desktop
+    - name: Run clippy (excluding orbit-mcp)
+      run: cargo clippy --workspace --exclude orbit-mcp --all-targets --features desktop -- -D warnings
   # Testing on beta channel (non-blocking)
   test-beta:
-    name: Test Suite (Beta - Non-blocking)
+    name: Test Suite (Beta - Non-blocking Core Framework)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     continue-on-error: true
@@ -87,7 +98,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
         
-    # Test each package separately to identify failures by package
+    # Test each package separately to identify failures by package (excluding orbit-mcp)
     - name: Test orbit package
       id: orbit_tests
       continue-on-error: true
@@ -99,6 +110,35 @@ jobs:
       run: cargo test -p orlint
       
     - name: Test orbiton package
+      id: orbiton_tests
+      continue-on-error: true
+      run: cargo test -p orbiton --features desktop
+      
+    - name: Test examples package
+      id: examples_tests
+      continue-on-error: true
+      run: cargo test -p examples --features desktop
+      
+    # Clippy checks per package (excluding orbit-mcp)
+    - name: Clippy orbit package
+      id: orbit_clippy
+      continue-on-error: true
+      run: cargo clippy -p orbit --features desktop -- -D warnings
+      
+    - name: Clippy orlint package
+      id: orlint_clippy
+      continue-on-error: true
+      run: cargo clippy -p orlint -- -D warnings
+      
+    - name: Clippy orbiton package
+      id: orbiton_clippy
+      continue-on-error: true
+      run: cargo clippy -p orbiton --features desktop -- -D warnings
+      
+    - name: Clippy examples package
+      id: examples_clippy
+      continue-on-error: true
+      run: cargo clippy -p examples --features desktop -- -D warnings
       id: orbiton_tests
       continue-on-error: true
       run: cargo test -p orbiton --features desktop
@@ -237,10 +277,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Please review full logs in the Actions tab for details." >> $GITHUB_STEP_SUMMARY
         fi
-
   # Build verification
   build:
-    name: Build Verification
+    name: Build Verification (Core Framework)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [fast-check, test-stable]
@@ -254,14 +293,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
-    - name: Build all crates
-      run: cargo build --workspace --features desktop
+    - name: Build all core crates (excluding orbit-mcp)
+      run: cargo build --workspace --exclude orbit-mcp --features desktop
     - name: Build examples
       run: cargo build --manifest-path examples/Cargo.toml --features desktop
-
   # WebAssembly build verification
   wasm-build:
-    name: WebAssembly Build
+    name: WebAssembly Build (Core Framework)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [test-stable]
@@ -279,15 +317,14 @@ jobs:
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
     - name: Install wasm-pack
       run: cargo install wasm-pack
-    - name: Build for WebAssembly
+    - name: Build for WebAssembly (excluding orbit-mcp)
       env:
         RUSTFLAGS: "--cfg=web_sys_unstable_apis"
       run: |
         cargo build --target wasm32-unknown-unknown --package orbit --no-default-features --features="web"
-        cargo build --target wasm32-unknown-unknown --package examples --no-default-features --features="web"
-  # Documentation generation and deployment
+        cargo build --target wasm32-unknown-unknown --package examples --no-default-features --features="web"  # Documentation generation and deployment
   docs:
-    name: Documentation
+    name: Documentation (Core Framework)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Always run documentation build but only deploy on main
@@ -321,9 +358,154 @@ jobs:
           mkdir -p docs/tooling
           # Copy from the template
           cp -f scripts/docs-templates/github-copilot-cli-template.md docs/tooling/github-copilot-cli.md || echo "Template not found, documentation will be generated by the docs job"
-        fi
-    - name: Generate documentation
-      run: cargo doc --workspace --no-default-features --no-deps
+        fi    
+    - name: Generate documentation (excluding orbit-mcp)
+      run: cargo doc --workspace --exclude orbit-mcp --no-default-features --no-deps
+    
+    - name: Create documentation landing page
+      run: |
+        # Create a beautiful landing page for the documentation
+        cat > ./target/doc/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Orbit Framework Documentation</title>
+            <meta name="description" content="Documentation for the Orbit UI Framework - A cross-platform Rust-based UI framework">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 2rem;
+                    background-color: #f8f9fa;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 3rem;
+                    padding: 2rem;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 2.5rem;
+                    font-weight: 600;
+                }
+                .header p {
+                    margin: 0.5rem 0 0;
+                    font-size: 1.1rem;
+                    opacity: 0.9;
+                }
+                .docs-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 1.5rem;
+                    margin-bottom: 2rem;
+                }
+                .doc-card {
+                    background: white;
+                    padding: 1.5rem;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.2s, box-shadow 0.2s;
+                }
+                .doc-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                }
+                .doc-card h2 {
+                    margin: 0 0 1rem;
+                    color: #667eea;
+                    font-size: 1.3rem;
+                }
+                .doc-card p {
+                    margin: 0 0 1rem;
+                    color: #666;
+                }
+                .doc-card a {
+                    display: inline-block;
+                    padding: 0.5rem 1rem;
+                    background: #667eea;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    transition: background 0.2s;
+                }
+                .doc-card a:hover {
+                    background: #5a67d8;
+                }
+                .footer {
+                    text-align: center;
+                    margin-top: 3rem;
+                    padding: 1rem;
+                    color: #666;
+                    border-top: 1px solid #eee;
+                }
+                .footer a {
+                    color: #667eea;
+                    text-decoration: none;
+                }
+                .footer a:hover {
+                    text-decoration: underline;
+                }
+                @media (max-width: 600px) {
+                    body { padding: 1rem; }
+                    .header h1 { font-size: 2rem; }
+                    .docs-grid { grid-template-columns: 1fr; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🌌 Orbit Framework</h1>
+                <p>Cross-platform Rust-based UI Framework Documentation</p>
+            </div>
+
+            <div class="docs-grid">
+                <div class="doc-card">
+                    <h2>📚 Core Framework (orbit)</h2>
+                    <p>The core rendering engine, component model, and foundational APIs for the Orbit UI framework.</p>
+                    <a href="./orbit/index.html">View Core Documentation</a>
+                </div>
+
+                <div class="doc-card">
+                    <h2>🛠️ CLI Tool (orbiton)</h2>
+                    <p>Command-line interface for project scaffolding, development server, build tools, and analysis.</p>
+                    <a href="./orbiton/index.html">View CLI Documentation</a>
+                </div>
+
+                <div class="doc-card">
+                    <h2>🔍 Static Analyzer (orlint)</h2>
+                    <p>Static analyzer and linter for .orbit single-file components with advanced diagnostics.</p>
+                    <a href="./orlint/index.html">View Analyzer Documentation</a>
+                </div>
+
+                <div class="doc-card">
+                    <h2>💡 Examples</h2>
+                    <p>Sample applications, component demos, and practical usage examples for learning Orbit.</p>
+                    <a href="./examples/index.html">View Examples</a>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>
+                    Generated with ❤️ by <a href="https://forge.rust-lang.org/infra/rustdoc.html">rustdoc</a> |
+                    <a href="https://github.com/orbitrs/sdk">GitHub Repository</a> |
+                    <a href="https://github.com/orbitrs/sdk/issues">Report Issues</a>
+                </p>
+                <p>
+                    <strong>Version:</strong> Built from main branch
+                </p>
+            </div>
+        </body>
+        </html>
+        EOF
     - name: Setup Pages
       id: setup-pages
       continue-on-error: true

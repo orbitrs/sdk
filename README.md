@@ -17,6 +17,7 @@ Orbitrs SDK is a workspace containing the core Orbit UI framework, CLI tooling, 
 - Implemented component lifecycle demonstration
 - Added WGPU renderer examples for 3D capabilities
 - Refactored project organization for better maintainability
+- Added MCP server for AI agent integration (May 25, 2025)
 
 See [Milestone 1 Tracking](docs/roadmap/tracking/milestone-1-tracking.md) for detailed progress updates.
 
@@ -27,6 +28,7 @@ See [Milestone 1 Tracking](docs/roadmap/tracking/milestone-1-tracking.md) for de
 | Core Framework         | `orbit/`    | Orbit UI framework with Skia & WGPU rendering                   |
 | CLI Tools              | `orbiton/`  | Command-line interface for development, building, and deployment|
 | Linting & Analysis     | `orlint/`   | Static analysis, linting, and validation for `.orbit` files     |
+| AI Integration         | `orbit-mcp/`| Model Context Protocol server for AI agent integration          |
 | Public Assets & Site   | `public/`   | Organization website, assets, and examples                      |
 | Documentation          | `docs/`     | Guides, API references, tutorials, roadmap, and progress reports|
 

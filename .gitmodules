@@ -16,3 +16,6 @@
 [submodule "orbiton"]
 	path = orbiton
 	url = https://github.com/orbitrs/orbiton.git
+[submodule "orbit-mcp"]
+	path = orbit-mcp
+	url = https://github.com/orbitrs/orbit-mcp.git

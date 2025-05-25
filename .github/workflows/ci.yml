@@ -396,10 +396,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
     if: always()
     permissions:
       issues: write
-      contents: read
-    steps:
+      contents: read    steps:
       - uses: actions/checkout@v4
-        - name: Get beta version
+      
+      - name: Get beta version
         id: get-beta-version
         if: needs.beta-consolidate.outputs.has_failures == 'true'
         shell: bash
@@ -407,7 +407,8 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
           rustup default beta
           BETA_VERSION=$(rustc --version)
           echo "beta_version=$BETA_VERSION" >> $GITHUB_OUTPUT
-        - name: Process failure data
+          
+      - name: Process failure data
         id: process-failures
         if: needs.beta-consolidate.outputs.has_failures == 'true'
         shell: bash

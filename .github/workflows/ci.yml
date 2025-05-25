@@ -390,8 +390,7 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
             echo "has_failures=true" >> $GITHUB_OUTPUT
             echo "consolidated_failures=$FAILURES" >> $GITHUB_OUTPUT
           fi
-  
-  # Beta compatibility reporting
+    # Beta compatibility reporting
   beta-report:
     name: Beta Compatibility Report
     runs-on: ubuntu-latest
@@ -400,9 +399,8 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
     permissions:
       issues: write
       contents: read    
-      steps:
+    steps:
       - uses: actions/checkout@v4
-      
       - name: Get beta version
         id: get-beta-version
         if: needs.beta-consolidate.outputs.has_failures == 'true'

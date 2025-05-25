@@ -122,9 +122,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       run: cargo clippy -p orbit --features desktop -- -D warnings
       
     - name: Clippy orlint package
-      id: orlint_clippy      continue-on-error: true
-      run: cargo clippy -p orlint -- -D warnings
-      
+      id: orlint_clippy
+      continue-on-error: true
+      run: cargo clippy -p orlint -- -D warnings    
+    
     - name: Clippy orbiton package
       id: orbiton_clippy
       continue-on-error: true
@@ -366,7 +367,8 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       
   # Consolidate beta test results from all platforms
   beta-consolidate:
-    name: Consolidate Beta Test Results    runs-on: ubuntu-latest
+    name: Consolidate Beta Test Results    
+    runs-on: ubuntu-latest
     needs: [test-beta]
     if: always()
     outputs:
@@ -425,7 +427,7 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
           
           # Store the full failure details for reports
           echo "failures=$FAILURES" >> $GITHUB_OUTPUT
-        - name: Create summary report
+      - name: Create summary report
         shell: bash
         run: |
           echo "# 📊 Rust Beta Compatibility Report" >> $GITHUB_STEP_SUMMARY

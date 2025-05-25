@@ -429,7 +429,7 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
         </head>
         <body>
             <div class="header">
-                <h1>🌌 Orbit Framework</h1>
+                <h1><img src="https://raw.githubusercontent.com/orbitrs/.github/refs/heads/main/assets/orbitrs.svg" alt="Orbit UI Framework" width="200"> Orbit SDK</h1>
                 <p>Cross-platform Rust-based UI Framework Documentation</p>
             </div>
 
@@ -467,6 +467,9 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
                 </p>
                 <p>
                     <strong>Version:</strong> Built from main branch
+                </p>
+                <p>
+                    Powered by <strong><a href="https://devstroop.com">Devstroop Technologies</a></strong>
                 </p>
             </div>
         </body>

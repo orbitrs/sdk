@@ -31,6 +31,7 @@ show_help() {
     echo "  lint       - Linting commands"
     echo "  git        - Git workflow commands"
     echo "  issue      - Create GitHub issues with Copilot"
+    echo "  refs       - Information about code references"
     echo "  help       - Show this help message"
     echo ""
     echo "Examples:"
@@ -93,6 +94,26 @@ get_suggestions() {
     esac
 }
 
+# Function to check for public code references
+check_code_references() {
+    echo -e "${BLUE}GitHub Copilot Code References${RESET}"
+    echo ""
+    echo -e "${YELLOW}GitHub Copilot can show references to public code that matches its suggestions.${RESET}"
+    echo ""
+    echo "To view code references in VS Code:"
+    echo "1. Open the Output panel (View > Output)"
+    echo "2. Select 'GitHub Copilot Log (Code References)' from the dropdown"
+    echo ""
+    echo "When you accept a completion or receive a chat response that matches public code,"
+    echo "details will appear in this log, including:"
+    echo "- URLs of matching files"
+    echo "- License information if available"
+    echo "- Code snippets showing the matches"
+    echo ""
+    echo -e "${YELLOW}This helps ensure proper attribution and compliance with open source licenses.${RESET}"
+    echo ""
+}
+
 # Main script execution
 if [ $# -eq 0 ]; then
     # No arguments, use default category
@@ -100,6 +121,9 @@ if [ $# -eq 0 ]; then
 elif [ "$1" == "help" ]; then
     # Show help
     show_help
+elif [ "$1" == "references" ] || [ "$1" == "refs" ]; then
+    # Show code references info
+    check_code_references
 else
     # Use provided category
     get_suggestions "$1"

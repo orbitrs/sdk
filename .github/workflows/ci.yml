@@ -125,12 +125,12 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       id: orlint_clippy
       continue-on-error: true
       run: cargo clippy -p orlint -- -D warnings
-      
-    - name: Clippy orbiton package
+        - name: Clippy orbiton package
       id: orbiton_clippy
       continue-on-error: true
       run: cargo clippy -p orbiton --features desktop -- -D warnings
-        - name: Clippy examples package
+      
+    - name: Clippy examples package
       id: examples_clippy
       continue-on-error: true
       run: cargo clippy -p examples --features desktop -- -D warnings

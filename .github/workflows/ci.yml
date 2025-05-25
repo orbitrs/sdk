@@ -4,14 +4,12 @@ on:
   push:
     branches: [ main, develop ]
     paths-ignore:
-      - 'orbit-mcp/**'
       - '.github/workflows/orbit-mcp.yml'
       - 'docs/**'
       - '*.md'
   pull_request:
     branches: [ main ]
     paths-ignore:
-      - 'orbit-mcp/**'
       - '.github/workflows/orbit-mcp.yml'
       - 'docs/**'
       - '*.md'
@@ -19,8 +17,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Explicitly exclude orbit-mcp from workspace operations
-  CARGO_WORKSPACE_EXCLUDE: "orbit-mcp"
 
 jobs:  # Fast feedback job for quick iteration - Core Framework Only
   fast-check:
@@ -37,10 +33,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
-    - name: Fast workspace check (excluding orbit-mcp)
+    - name: Fast workspace check
       run: |
-        echo "Checking core framework workspace: orbit, orlint, orbiton, examples"
-        cargo check --workspace --all-targets --exclude orbit-mcp
+        echo "Checking full framework workspace: orbit, orlint, orbiton, examples, orbit-mcp"
+        cargo check --workspace --all-targets
   # Comprehensive testing across platforms - stable channel (required)
   test-stable:
     name: Test Suite (Stable - Core Framework)
@@ -63,10 +59,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
-    - name: Run tests (excluding orbit-mcp)
-      run: cargo test --workspace --exclude orbit-mcp --features desktop
-    - name: Run clippy (excluding orbit-mcp)
-      run: cargo clippy --workspace --exclude orbit-mcp --all-targets --features desktop -- -D warnings
+    - name: Run tests
+      run: cargo test --workspace --features desktop
+    - name: Run clippy
+      run: cargo clippy --workspace --all-targets --features desktop -- -D warnings
   # Testing on beta channel (non-blocking)
   test-beta:
     name: Test Suite (Beta - Non-blocking Core Framework)

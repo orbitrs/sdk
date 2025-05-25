@@ -5,8 +5,9 @@ members = [
     "orbit", 
     "orlint",
     "examples",
-    "orbit-mcp",
 ]
+
+# orbit-mcp is a standalone crate with its own CI pipeline
 
 # Workspace-wide optimization settings
 [workspace.dependencies]
@@ -15,7 +16,6 @@ orbit = { path = "./orbit", default-features = false }
 orbiton = { path = "./orbiton" }
 orlint = { path = "./orlint" }
 examples = { path = "./examples" }
-orbit-mcp = { path = "./orbit-mcp" }
 
 # Common external dependencies with version unification
 serde = { version = "1.0", features = ["derive"] }

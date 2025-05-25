@@ -104,7 +104,8 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       id: orlint_tests
       continue-on-error: true
       run: cargo test -p orlint
-        - name: Test orbiton package
+      
+    - name: Test orbiton package
       id: orbiton_tests
       continue-on-error: true
       run: cargo test -p orbiton

@@ -104,11 +104,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       id: orlint_tests
       continue-on-error: true
       run: cargo test -p orlint
-      
-    - name: Test orbiton package
+        - name: Test orbiton package
       id: orbiton_tests
       continue-on-error: true
-      run: cargo test -p orbiton --features desktop
+      run: cargo test -p orbiton
       
     - name: Test examples package
       id: examples_tests
@@ -125,11 +124,10 @@ jobs:  # Fast feedback job for quick iteration - Core Framework Only
       id: orlint_clippy
       continue-on-error: true
       run: cargo clippy -p orlint -- -D warnings    
-    
-    - name: Clippy orbiton package
+      - name: Clippy orbiton package
       id: orbiton_clippy
       continue-on-error: true
-      run: cargo clippy -p orbiton --features desktop -- -D warnings
+      run: cargo clippy -p orbiton -- -D warnings
       
     - name: Clippy examples package
       id: examples_clippy

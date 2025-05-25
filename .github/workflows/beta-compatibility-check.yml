@@ -1,0 +1,243 @@
+name: Beta Compatibility Check
+
+on:
+  pull_request:
+    paths:
+      - '**/*.rs'
+      - '.github/workflows/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  schedule:
+    # Run weekly on Sunday at midnight
+    - cron: '0 0 * * 0'
+  # Manual trigger
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  beta-compatibility:
+    name: Beta Compatibility Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Install Rust Beta
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: beta
+        components: clippy
+        
+    - name: Set up cache
+      uses: Swatinem/rust-cache@v2
+      
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
+        
+    - name: Check for format string issues
+      id: format_check
+      run: |
+        echo "## Format String Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "Checking for uninlined format strings and other beta compatibility issues:" >> $GITHUB_STEP_SUMMARY
+        
+        # Find files with potential format string issues
+        FORMAT_ISSUES=$(find . -name "*.rs" -exec grep -l 'format!("[^"]*{}[^"]*", [^)]\+)' {} \;)
+        
+        if [ -n "$FORMAT_ISSUES" ]; then
+          echo "### ⚠️ Format String Issues Found" >> $GITHUB_STEP_SUMMARY
+          echo "The following files contain potentially deprecated format strings:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$FORMAT_ISSUES" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "🔍 Consider updating to inline format syntax: \`format!(\"Error: {var_name}\")\`" >> $GITHUB_STEP_SUMMARY
+          echo "::set-output name=has_format_issues::true"
+        else
+          echo "### ✅ No Format String Issues Found" >> $GITHUB_STEP_SUMMARY
+          echo "::set-output name=has_format_issues::false"
+        fi
+        
+    - name: Check CI configuration
+      id: ci_check
+      run: |
+        echo "## CI Configuration Analysis" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for desktop feature usage with orbiton
+        if grep -q "cargo .* -p orbiton .* --features desktop" .github/workflows/ci.yml; then
+          echo "### ⚠️ CI Configuration Issues Found" >> $GITHUB_STEP_SUMMARY
+          echo "CI is using the 'desktop' feature with orbiton package, but this feature doesn't exist." >> $GITHUB_STEP_SUMMARY
+          echo "🔍 Remove '--features desktop' from orbiton commands in CI workflow." >> $GITHUB_STEP_SUMMARY
+          echo "::set-output name=has_ci_issues::true"
+        else
+          echo "### ✅ No CI Configuration Issues Found" >> $GITHUB_STEP_SUMMARY
+          echo "::set-output name=has_ci_issues::false"
+        fi
+        
+    - name: Run clippy with beta
+      id: clippy_check
+      continue-on-error: true
+      run: |
+        echo "## Clippy Analysis (Beta)" >> $GITHUB_STEP_SUMMARY
+        
+        # Run clippy on all packages
+        ORBIT_RESULT=$(cargo +beta clippy -p orbit --features desktop -- -D warnings 2>&1) || true
+        ORLINT_RESULT=$(cargo +beta clippy -p orlint -- -D warnings 2>&1) || true
+        ORBITON_RESULT=$(cargo +beta clippy -p orbiton -- -D warnings 2>&1) || true
+        EXAMPLES_RESULT=$(cargo +beta clippy -p examples --features desktop -- -D warnings 2>&1) || true
+        
+        # Check for failures
+        HAS_FAILURES=false
+        
+        if echo "$ORBIT_RESULT" | grep -q "error:"; then
+          echo "### ❌ orbit clippy failed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$ORBIT_RESULT" | grep "error:" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          HAS_FAILURES=true
+        else
+          echo "### ✅ orbit clippy passed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if echo "$ORLINT_RESULT" | grep -q "error:"; then
+          echo "### ❌ orlint clippy failed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$ORLINT_RESULT" | grep "error:" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          HAS_FAILURES=true
+        else
+          echo "### ✅ orlint clippy passed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if echo "$ORBITON_RESULT" | grep -q "error:"; then
+          echo "### ❌ orbiton clippy failed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$ORBITON_RESULT" | grep "error:" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          HAS_FAILURES=true
+        else
+          echo "### ✅ orbiton clippy passed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if echo "$EXAMPLES_RESULT" | grep -q "error:"; then
+          echo "### ❌ examples clippy failed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$EXAMPLES_RESULT" | grep "error:" | head -n 10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          HAS_FAILURES=true
+        else
+          echo "### ✅ examples clippy passed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "$HAS_FAILURES" = "true" ]; then
+          echo "::set-output name=has_clippy_issues::true"
+        else
+          echo "::set-output name=has_clippy_issues::false"
+        fi
+        
+    - name: Add PR comment
+      if: github.event_name == 'pull_request' && (steps.format_check.outputs.has_format_issues == 'true' || steps.ci_check.outputs.has_ci_issues == 'true' || steps.clippy_check.outputs.has_clippy_issues == 'true')
+      uses: peter-evans/create-or-update-comment@v3
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        body: |
+          # Beta Compatibility Check Results
+          
+          This PR was automatically checked for compatibility with the Rust beta toolchain.
+          
+          ## Summary
+          
+          ${{ steps.format_check.outputs.has_format_issues == 'true' && '⚠️ Format string issues found' || '✅ No format string issues' }}
+          ${{ steps.ci_check.outputs.has_ci_issues == 'true' && '⚠️ CI configuration issues found' || '✅ No CI configuration issues' }}
+          ${{ steps.clippy_check.outputs.has_clippy_issues == 'true' && '⚠️ Clippy issues found with beta toolchain' || '✅ No clippy issues with beta toolchain' }}
+          
+          Please see the workflow run for full details.
+          
+          ## Resources
+          
+          - [Format string guidance](https://github.com/orbitrs/sdk/blob/main/docs/tooling/format-string-guidance.md)
+          - [Beta compatibility testing guide](https://github.com/orbitrs/sdk/blob/main/docs/tooling/beta-compatibility-testing.md)
+          
+    - name: Label PR with beta issues
+      if: github.event_name == 'pull_request' && (steps.format_check.outputs.has_format_issues == 'true' || steps.ci_check.outputs.has_ci_issues == 'true' || steps.clippy_check.outputs.has_clippy_issues == 'true')
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          try {
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['beta-compatibility']
+            })
+          } catch (error) {
+            console.log('Error adding label: ' + error)
+            // Create the label if it doesn't exist
+            try {
+              github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'beta-compatibility',
+                color: 'fbca04', // Yellow color
+                description: 'Issues with Rust beta compatibility'
+              })
+              // Try adding the label again
+              github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['beta-compatibility']
+              })
+            } catch (labelError) {
+              console.log('Error creating label: ' + labelError)
+            }
+          }
+          
+    - name: Create/Update Beta Compatibility Report
+      if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      run: |
+        # Generate report date
+        REPORT_DATE=$(date +"%Y-%m-%d")
+        BETA_VERSION=$(rustc +beta --version)
+        
+        # Create report directory if it doesn't exist
+        mkdir -p reports/beta-compatibility
+        
+        # Generate report file
+        cat > reports/beta-compatibility/report-$REPORT_DATE.md << EOF
+        # Beta Compatibility Report ($REPORT_DATE)
+        
+        **Rust Version**: $BETA_VERSION
+        
+        ## Format String Analysis
+        
+        ${{ steps.format_check.outputs.has_format_issues == 'true' && '⚠️ Format string issues found' || '✅ No format string issues' }}
+        
+        ## CI Configuration Analysis
+        
+        ${{ steps.ci_check.outputs.has_ci_issues == 'true' && '⚠️ CI configuration issues found' || '✅ No CI configuration issues' }}
+        
+        ## Clippy Analysis
+        
+        ${{ steps.clippy_check.outputs.has_clippy_issues == 'true' && '⚠️ Clippy issues found with beta toolchain' || '✅ No clippy issues with beta toolchain' }}
+        
+        ## Next Steps
+        
+        - Review and address any identified issues
+        - Update documentation if necessary
+        - Schedule follow-up review if needed
+        
+        EOF
+        
+        echo "Report generated at: reports/beta-compatibility/report-$REPORT_DATE.md"

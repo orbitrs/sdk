@@ -1,0 +1,45 @@
+#!/usr/bin/env pwsh
+# Pre-commit hook to check for beta compatibility issues
+# Install by copying to .git/hooks/pre-commit and making executable
+
+# Stash unstaged changes
+git stash -q --keep-index
+
+# Get changed Rust files
+$changed_files = git diff --cached --name-only --diff-filter=ACM | Where-Object { $_ -like "*.rs" }
+
+if ($changed_files.Count -gt 0) {
+    Write-Host "🔍 Checking beta compatibility for changed files..." -ForegroundColor Blue
+    
+    $has_issues = $false
+    
+    foreach ($file in $changed_files) {
+        # Check for uninlined format strings
+        $format_issues = Select-String -Path $file -Pattern 'format!\("[^"]*{}[^"]*", [^)]+\)' -AllMatches
+        
+        if ($format_issues.Matches.Count -gt 0) {
+            Write-Host "⚠️ $file contains potentially deprecated format strings:" -ForegroundColor Yellow
+            foreach ($match in $format_issues.Matches) {
+                Write-Host "  Line $($format_issues.LineNumber): $($match.Value)" -ForegroundColor Yellow
+            }
+            $has_issues = $true
+        }
+    }
+    
+    if ($has_issues) {
+        Write-Host "❌ Beta compatibility issues found. Please fix them before committing." -ForegroundColor Red
+        Write-Host "   See docs/tooling/format-string-guidance.md for guidance." -ForegroundColor Blue
+        
+        # Restore stashed changes
+        git stash pop -q
+        
+        exit 1
+    } else {
+        Write-Host "✅ No beta compatibility issues found in changed files." -ForegroundColor Green
+    }
+}
+
+# Restore stashed changes
+git stash pop -q 2>&1 | Out-Null
+
+exit 0

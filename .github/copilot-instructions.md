@@ -2,6 +2,13 @@
 
 This file provides fundamental knowledge for Copilot to assist effectively in the Orbit Framework SDK project.
 
+## MVP Development Context (Updated: May 25, 2025)
+
+- **Current Phase**: 21-day sprint for 0.1.0 MVP Release
+- **Current User**: @itsalfredakku (Technical Lead & Core Architecture)
+- **Focus Areas**: Component model, rendering pipeline coordination, and MVP integration
+- **Documentation**: See `docs/progress-reports/MVP_TEAM_TASK_ASSIGNMENTS.md` for complete team assignments
+
 ## Project Overview
 
 - **Name**: Orbit UI Framework
@@ -51,6 +58,42 @@ This file provides fundamental knowledge for Copilot to assist effectively in th
 - Ensure all new docs follow the existing style and directory conventions.
 - Highlight ports and environment guidelines for web, CLI, and GUI contexts as specified in CLI docs.
 - Archive or deprecate SDK docs marked as non-essential in `docs/DEVELOPMENT_PRIORITIES.md`.
+
+## Role-Specific Task Focus (@itsalfredakku)
+
+### Current Week 1 Tasks (Days 1-7)
+
+1. **Component Lifecycle Enhancement** (Days 1-2)
+   - Complete component mounting/unmounting lifecycle
+   - Implement state change detection and batching
+   - Add component tree management
+   - **Success criteria**: All component lifecycle methods fully implemented and tested
+
+2. **Props and Events System** (Days 3-4)
+   - Finalize type-safe props validation
+   - Complete event delegation system
+   - Implement parent-child communication patterns
+   - **Success criteria**: Complete props/events framework with validation
+
+3. **State Management Integration** (Days 5-7)
+   - Reactive state tracking completion
+   - Context API implementation
+   - Signal system optimization
+   - **Success criteria**: Unified state management system with reactive updates
+
+### Code Approach Preferences
+   
+- **Component Architecture**: Favor composition over inheritance
+- **API Design**: Design for developer experience with clear type signatures
+- **Error Handling**: Use Result with custom ComponentError types
+- **Performance**: Focus on optimizing component update cycle and state change detection
+- **Code Style**: Follow Rust idioms with comprehensive documentation
+
+### Coordination Focus
+
+- Daily coordination with @dev1-devstroop on renderer integration
+- API design reviews with full team
+- Integration testing with all components
 
 ---
 

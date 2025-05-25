@@ -1,0 +1,116 @@
+name: "Handle Non-Blocking Job"
+description: "A reusable action to handle non-blocking jobs that should be reported but not fail the workflow"
+
+inputs:
+  job-name:
+    description: "The name of the job being monitored"
+    required: true
+  job-result:
+    description: "The result of the job to evaluate (success, failure, skipped, etc)"
+    required: true
+  issue-label:
+    description: "GitHub issue label to use for reporting"
+    required: true
+  issue-title-prefix:
+    description: "Prefix for the GitHub issue title"
+    required: true
+  target-repo:
+    description: "Name of the target repository to create issues in (e.g. 'orbitrs/orbit'). Defaults to current repo."
+    required: false
+    default: ""
+  version-info:
+    description: "Version information to include in reports"
+    required: false
+    default: ""
+  failure-details:
+    description: "JSON string containing details about which packages failed"
+    required: false
+    default: "[]"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create job report
+      shell: bash
+      run: |
+        echo "# 📊 ${{ inputs.job-name }} Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "This is an informational report and does not block the pipeline." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Report job status using provided result
+        if [[ "${{ inputs.job-result }}" == "success" ]]; then
+          echo "✅ **All tests passed successfully!**" >> $GITHUB_STEP_SUMMARY
+        elif [[ "${{ inputs.job-result }}" == "failure" ]]; then
+          echo "⚠️ **Failures detected**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Some tests failed. This is for monitoring purposes only and" >> $GITHUB_STEP_SUMMARY
+          echo "does not block the workflow." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ **Tests were skipped or canceled**" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "See individual job results for more details." >> $GITHUB_STEP_SUMMARY
+        
+    - name: Check for existing issue
+      if: inputs.job-result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      id: check-issues
+      shell: bash
+      run: |
+        # Determine target repo
+        TARGET_REPO="${{ inputs.target-repo }}"
+        if [[ -z "$TARGET_REPO" ]]; then
+          TARGET_REPO="${{ github.repository }}"
+        fi
+        echo "target_repo=$TARGET_REPO" >> $GITHUB_OUTPUT
+        
+        # Check for existing open issues with our specific label
+        ISSUE_COUNT=$(gh issue list --repo "$TARGET_REPO" --label "${{ inputs.issue-label }}" --state open --json number | jq length)
+        echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
+        
+        # Get version info if provided
+        if [[ -n "${{ inputs.version-info }}" ]]; then
+          echo "version_info=${{ inputs.version-info }}" >> $GITHUB_OUTPUT
+        else
+          echo "version_info=Not specified" >> $GITHUB_OUTPUT
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
+        
+    - name: Create Issue for Failure
+      if: inputs.job-result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.check-issues.outputs.issue_count == '0'
+      shell: bash
+      run: |
+        TARGET_REPO="${{ steps.check-issues.outputs.target_repo }}"
+        VERSION_INFO="${{ steps.check-issues.outputs.version_info }}"
+        WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        
+        # Format failure details if provided
+        FAILURE_DETAILS=""
+        if [[ -n "${{ inputs.failure-details }}" && "${{ inputs.failure-details }}" != "[]" ]]; then
+          FAILURE_DETAILS="### Failed Components\n\n$(echo '${{ inputs.failure-details }}' | jq -r '.[] | "- " + .package + ": " + .status')\n\n"
+        fi
+        
+        gh issue create \
+          --repo "$TARGET_REPO" \
+          --title "${{ inputs.issue-title-prefix }}: $VERSION_INFO" \
+          --label "${{ inputs.issue-label }},automated,maintenance" \
+          --body "## ${{ inputs.job-name }} Issue
+
+        The CI pipeline detected failures in ${{ inputs.job-name }}.
+
+        ### Details
+        - **Detected on:** $(date -u +"%Y-%m-%d")
+        - **Workflow run:** [View details]($WORKFLOW_URL)
+        - **Version info:** $VERSION_INFO
+
+        ${FAILURE_DETAILS}### Next steps
+        1. Check the workflow logs for details on specific failures
+        2. Determine if this requires code updates or if it's a temporary issue
+        3. If code changes are needed, create a PR addressing the compatibility issues
+        
+        This issue was automatically created by the CI workflow and will be used for tracking this issue.
+        Additional failures of the same type will be tracked here rather than creating duplicate issues."
+      env:
+        GH_TOKEN: ${{ github.token }}

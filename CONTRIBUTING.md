@@ -33,6 +33,7 @@ The Orbit Framework consists of several interrelated projects:
 - Cargo (comes with Rust)
 - Git
 - Node.js and npm (for some examples and tooling)
+- GitHub CLI (optional, for GitHub Copilot CLI integration)
 
 ### Setting Up the Development Environment
 
@@ -49,6 +50,11 @@ The Orbit Framework consists of several interrelated projects:
 4. Install development dependencies
    ```bash
    cargo build
+   ```
+5. (Optional) Set up GitHub Copilot CLI for enhanced development assistance
+   ```bash
+   # Run the setup script
+   ./scripts/setup-copilot-cli.sh
    ```
 
 ## Development Workflow

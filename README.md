@@ -51,6 +51,26 @@ cargo test --workspace
 orlint lint
 ```
 
+## GitHub Copilot CLI Integration
+
+We offer GitHub Copilot CLI integration to enhance your development experience with Orbit Framework. To set it up:
+
+```bash
+# Run the setup script
+./scripts/setup-copilot-cli.sh
+
+# Or manually install
+gh extension install github/gh-copilot
+
+# Get command explanations
+gh copilot explain "cargo test -p orbit"
+
+# Get command suggestions
+gh copilot suggest "Update my branch with latest changes"
+```
+
+See [GitHub Copilot CLI Guide](docs/tooling/github-copilot-cli.md) for more details.
+
 ## Documentation
 
 Explore detailed guides, API references, and tutorials in [docs/README.md](docs/README.md).

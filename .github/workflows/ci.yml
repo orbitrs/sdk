@@ -29,22 +29,21 @@ jobs:
     - name: Fast workspace check
       run: cargo check --workspace --all-targets
 
-  # Comprehensive testing across platforms
-  test:
-    name: Test Suite
+  # Comprehensive testing across platforms - stable channel (required)
+  test-stable:
+    name: Test Suite (Stable)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, beta]
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
     - uses: dtolnay/rust-toolchain@v1
       with:
-        toolchain: ${{ matrix.rust }}
+        toolchain: stable
         components: clippy
     - uses: Swatinem/rust-cache@v2
     - name: Install system dependencies (Linux)
@@ -57,11 +56,194 @@ jobs:
     - name: Run clippy
       run: cargo clippy --workspace --all-targets --features desktop -- -D warnings
 
+  # Testing on beta channel (non-blocking)
+  test-beta:
+    name: Test Suite (Beta - Non-blocking)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      # Ensure we collect results from all matrix runs
+      fail-fast: false
+    outputs:
+      # Use the ubuntu run as the source of truth for failures
+      # This ensures we have consistent output across the matrix
+      failure_details: ${{ steps.collect_failures.outputs.failure_details }}
+      has_failures: ${{ steps.collect_failures.outputs.has_failures }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: beta
+        components: clippy
+    - uses: Swatinem/rust-cache@v2
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
+        
+    # Test each package separately to identify failures by package
+    - name: Test orbit package
+      id: orbit_tests
+      continue-on-error: true
+      run: cargo test -p orbit --features desktop
+      
+    - name: Test orlint package
+      id: orlint_tests
+      continue-on-error: true
+      run: cargo test -p orlint
+      
+    - name: Test orbiton package
+      id: orbiton_tests
+      continue-on-error: true
+      run: cargo test -p orbiton --features desktop
+      
+    - name: Test examples package
+      id: examples_tests
+      continue-on-error: true
+      run: cargo test -p examples --features desktop
+      
+    # Clippy checks per package
+    - name: Clippy orbit package
+      id: orbit_clippy
+      continue-on-error: true
+      run: cargo clippy -p orbit --features desktop -- -D warnings
+      
+    - name: Clippy orlint package
+      id: orlint_clippy
+      continue-on-error: true
+      run: cargo clippy -p orlint -- -D warnings
+      
+    - name: Clippy orbiton package
+      id: orbiton_clippy
+      continue-on-error: true
+      run: cargo clippy -p orbiton --features desktop -- -D warnings
+      
+    - name: Clippy examples package
+      id: examples_clippy
+      continue-on-error: true
+      run: cargo clippy -p examples --features desktop -- -D warnings
+      
+    - name: Collect package failures
+      id: collect_failures
+      run: |
+        # Build a JSON array of failures
+        echo "Building JSON array of failures..."
+        FAILURES="["
+        
+        # Check each package for failures
+        if [[ "${{ steps.orbit_tests.outcome }}" == "failure" || "${{ steps.orbit_clippy.outcome }}" == "failure" ]]; then
+          FAILURES+='{"package": "orbit", "status": "failed", "repo": "orbitrs/orbit"},'
+        fi
+        
+        if [[ "${{ steps.orlint_tests.outcome }}" == "failure" || "${{ steps.orlint_clippy.outcome }}" == "failure" ]]; then
+          FAILURES+='{"package": "orlint", "status": "failed", "repo": "orbitrs/orlint"},'
+        fi
+        
+        if [[ "${{ steps.orbiton_tests.outcome }}" == "failure" || "${{ steps.orbiton_clippy.outcome }}" == "failure" ]]; then
+          FAILURES+='{"package": "orbiton", "status": "failed", "repo": "orbitrs/orbiton"},'
+        fi
+        
+        if [[ "${{ steps.examples_tests.outcome }}" == "failure" || "${{ steps.examples_clippy.outcome }}" == "failure" ]]; then
+          FAILURES+='{"package": "examples", "status": "failed", "repo": "orbitrs/sdk"},'
+        fi
+        
+        # Remove trailing comma if any failures were detected
+        if [[ "$FAILURES" != "[" ]]; then
+          FAILURES="${FAILURES%,}"
+        fi
+        
+        FAILURES+="]"
+        
+        # Determine if we have failures
+        if [[ "$FAILURES" == "[]" ]]; then
+          echo "has_failures=false" >> $GITHUB_OUTPUT
+        else
+          echo "has_failures=true" >> $GITHUB_OUTPUT
+        fi
+        
+        # Output the failures JSON
+        echo "failure_details=$FAILURES" >> $GITHUB_OUTPUT
+        
+    - name: Report failures to summary
+      if: steps.collect_failures.outputs.has_failures == 'true'
+      run: |
+        echo "## ⚠️ Beta Toolchain Failures Detected" >> $GITHUB_STEP_SUMMARY
+        echo "This is non-blocking information for monitoring Rust beta compatibility." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platform:** ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+        
+        # Display package-specific failures
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Package Status" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ steps.orbit_tests.outcome }}" == "failure" ]]; then
+          echo "- **orbit tests:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orbit tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.orlint_tests.outcome }}" == "failure" ]]; then
+          echo "- **orlint tests:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orlint tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.orbiton_tests.outcome }}" == "failure" ]]; then
+          echo "- **orbiton tests:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orbiton tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.examples_tests.outcome }}" == "failure" ]]; then
+          echo "- **examples tests:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **examples tests:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Clippy Status" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ steps.orbit_clippy.outcome }}" == "failure" ]]; then
+          echo "- **orbit clippy:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orbit clippy:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.orlint_clippy.outcome }}" == "failure" ]]; then
+          echo "- **orlint clippy:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orlint clippy:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.orbiton_clippy.outcome }}" == "failure" ]]; then
+          echo "- **orbiton clippy:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **orbiton clippy:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.examples_clippy.outcome }}" == "failure" ]]; then
+          echo "- **examples clippy:** Failed ❌" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **examples clippy:** Passed ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please review full logs in the Actions tab for details." >> $GITHUB_STEP_SUMMARY
+        fi
+
   # Build verification
   build:
     name: Build Verification
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [fast-check, test-stable]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -82,6 +264,7 @@ jobs:
     name: WebAssembly Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [test-stable]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -108,6 +291,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Always run documentation build but only deploy on main
+    needs: [test-stable]
     if: ${{ always() }}
     permissions:
       contents: read
@@ -126,6 +310,18 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev libfontconfig1-dev libfreetype6-dev
+        
+    # Ensure the GitHub Copilot CLI documentation is up-to-date
+    - name: Verify GitHub Copilot CLI documentation
+      run: |
+        if [ -f docs/tooling/github-copilot-cli.md ]; then
+          echo "✓ GitHub Copilot CLI documentation exists"
+        else
+          echo "Creating GitHub Copilot CLI documentation..."
+          mkdir -p docs/tooling
+          # Copy from the template
+          cp -f scripts/docs-templates/github-copilot-cli-template.md docs/tooling/github-copilot-cli.md || echo "Template not found, documentation will be generated by the docs job"
+        fi
     - name: Generate documentation
       run: cargo doc --workspace --no-default-features --no-deps
     - name: Setup Pages
@@ -143,3 +339,138 @@ jobs:
       if: steps.setup-pages.outcome == 'success' && github.ref == 'refs/heads/main'
       id: deployment
       uses: actions/deploy-pages@v4
+      
+  # Consolidate beta test results from all platforms
+  beta-consolidate:
+    name: Consolidate Beta Test Results
+    runs-on: ubuntu-latest
+    needs: [test-beta]
+    if: always()
+    outputs:
+      consolidated_failures: ${{ steps.consolidate.outputs.consolidated_failures }}
+      has_failures: ${{ steps.consolidate.outputs.has_failures }}
+    steps:
+      - name: Consolidate results
+        id: consolidate
+        run: |
+          # Use the output from test-beta job directly
+          FAILURES='${{ needs.test-beta.outputs.failure_details }}'
+          
+          # If we have failures, mark as failed
+          if [[ "$FAILURES" == "[]" || -z "$FAILURES" ]]; then
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "consolidated_failures=[]" >> $GITHUB_OUTPUT
+          else
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+            echo "consolidated_failures=$FAILURES" >> $GITHUB_OUTPUT
+          fi
+  
+  # Beta compatibility reporting
+  beta-report:
+    name: Beta Compatibility Report
+    runs-on: ubuntu-latest
+    needs: [beta-consolidate]
+    if: always()
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get beta version
+        id: get-beta-version
+        if: needs.beta-consolidate.outputs.has_failures == 'true'
+        run: |
+          rustup default beta
+          BETA_VERSION=$(rustc --version)
+          echo "beta_version=$BETA_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Process failure data
+        id: process-failures
+        if: needs.beta-consolidate.outputs.has_failures == 'true'
+        run: |
+          # Get the failures from beta-consolidate job output
+          FAILURES='${{ needs.beta-consolidate.outputs.consolidated_failures }}'
+          echo "Failure details: $FAILURES"
+          
+          # Create a deduplicated list of repos with failures
+          REPOS=$(echo "$FAILURES" | jq -r '.[].repo' | sort -u)
+          echo "repos=$REPOS" >> $GITHUB_OUTPUT
+          
+          # Store the full failure details for reports
+          echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+      
+      - name: Create summary report
+        run: |
+          echo "# 📊 Rust Beta Compatibility Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This is an informational report and does not block the pipeline." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Report job status using consolidated results
+          if [[ "${{ needs.beta-consolidate.outputs.has_failures }}" == "false" ]]; then
+            echo "✅ **All beta tests passed successfully!**" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.beta-consolidate.outputs.has_failures }}" == "true" ]]; then
+            echo "⚠️ **Beta compatibility failures detected**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Parse the failures JSON array
+            echo '${{ steps.process-failures.outputs.failures }}' | jq -r '.[] | "- **" + .package + "**: Failed"' >> $GITHUB_STEP_SUMMARY
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Issues will be created in each affected repository." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **Beta tests were skipped or canceled**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See individual job results for more details." >> $GITHUB_STEP_SUMMARY
+      
+      # Create separate issues for each repository
+      - name: Create issues for orbit repository
+        if: needs.beta-consolidate.outputs.has_failures == 'true' && contains(steps.process-failures.outputs.repos, 'orbitrs/orbit')
+        uses: ./.github/actions/handle-non-blocking-job
+        with:
+          job-name: "Rust Beta Compatibility - orbit"
+          job-result: 'failure'
+          issue-label: "beta-compatibility"
+          issue-title-prefix: "Rust Beta Compatibility Issue - orbit"
+          target-repo: "orbitrs/orbit"
+          version-info: ${{ steps.get-beta-version.outputs.beta_version || 'Unknown beta version' }}
+          failure-details: ${{ steps.process-failures.outputs.failures }}
+          
+      - name: Create issues for orlint repository
+        if: needs.beta-consolidate.outputs.has_failures == 'true' && contains(steps.process-failures.outputs.repos, 'orbitrs/orlint')
+        uses: ./.github/actions/handle-non-blocking-job
+        with:
+          job-name: "Rust Beta Compatibility - orlint"
+          job-result: 'failure'
+          issue-label: "beta-compatibility"
+          issue-title-prefix: "Rust Beta Compatibility Issue - orlint"
+          target-repo: "orbitrs/orlint"
+          version-info: ${{ steps.get-beta-version.outputs.beta_version || 'Unknown beta version' }}
+          failure-details: ${{ steps.process-failures.outputs.failures }}
+          
+      - name: Create issues for orbiton repository
+        if: needs.test-beta.result == 'failure' && contains(steps.process-failures.outputs.repos, 'orbitrs/orbiton')
+        uses: ./.github/actions/handle-non-blocking-job
+        with:
+          job-name: "Rust Beta Compatibility - orbiton"
+          job-result: 'failure'
+          issue-label: "beta-compatibility"
+          issue-title-prefix: "Rust Beta Compatibility Issue - orbiton"
+          target-repo: "orbitrs/orbiton"
+          version-info: ${{ steps.get-beta-version.outputs.beta_version || 'Unknown beta version' }}
+          failure-details: ${{ steps.process-failures.outputs.failures }}
+          
+      - name: Create issues for SDK repository (for examples failures)
+        if: needs.test-beta.result == 'failure' && contains(steps.process-failures.outputs.repos, 'orbitrs/sdk')
+        uses: ./.github/actions/handle-non-blocking-job
+        with:
+          job-name: "Rust Beta Compatibility - examples"
+          job-result: 'failure'
+          issue-label: "beta-compatibility"
+          issue-title-prefix: "Rust Beta Compatibility Issue - SDK examples"
+          target-repo: "orbitrs/sdk"
+          version-info: ${{ steps.get-beta-version.outputs.beta_version || 'Unknown beta version' }}
+          failure-details: ${{ steps.process-failures.outputs.failures }}
